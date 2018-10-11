@@ -32,11 +32,13 @@ up trying to figure out the record structure on variable  length files but
 for some reason doesn't notice.
 
 --[.SRC]-------------------------------------------
+
 To compile simple run
 $ @MAKEFILE
 
--- Files ------------------------------------------
- TAIL.C1 - original source file which has been
+-- [Files] ------------------------------------------
+
+TAIL.C1 - original source file which has been
            included into the FREEWAREV80
  TAIL.C  - source file to compile,
            solved some issues.
