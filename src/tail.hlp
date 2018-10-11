@@ -1,0 +1,162 @@
+!
+! This is attempt v1.0 at a help file for tail just because I figure
+! people at Sunquest will find it useful.  I've incorporated a lot of
+! comments from the code itself, and made some minor changes.
+!
+! Ehud Gavron   08-Jul-1992
+!
+
+1 TAIL
+
+    Tail is a utility which displays the end of a file.
+   
+    Usage:   
+    $ TAIL [/number] [/?] [/S] [/F] [/T secs] input_file(s) [output_file]
+
+    Note that you can use a "-" to delimit qualifiers as well as a "/". 
+
+2 PARAMETERS
+
+input_file(s)
+
+    The file specification of the file or files to be displayed.
+    This specification defaults to SYS$DISK:[].LOG.
+
+output_file
+
+    An optional output file specification.  If it is supplied, TAIL
+    will direct its output to that file instead of the standard output
+    device (SYS$OUTPUT).
+
+2 QUALIFIERS
+
+/?
+
+	/?
+
+    Displays a short help screen from within the TAIL utility.
+
+/n
+
+	/n	Where n is an integer
+
+    Indicates how many last lines or records TAIL should display.
+    This number defaults to 24, or a regular full sized terminal
+    screen.
+
+/S
+	/S
+
+    If the /S qualifier is present, TAIL uses the "safe" method of
+    determining the location of the last records in a file.
+
+/F
+	/F
+
+    Monitors the input file and outputs records as they show up.  It
+    checks for new output every 5 seconds, although that may be 
+    changed by using the /T qualifier.
+
+/T
+	/T n
+
+    Denotes the update rate for monitoring the input file.  A /F is
+    automatically done if /T is supplied.  /T defaults to 5 seconds.
+
+
+2 EXAMPLES
+
+  1. $ TAIL /F /T 10 sys$manager:operator.log
+
+     This example will display the last 24 lines of the operator
+     log file, and then every 10 seconds check for new information
+     in that file and display it.
+
+  
+  2. $ tail -5 sys$login:batch_job.log
+
+     This example will display the last 5 lines of a batch job
+     log file.  Note that it uses the alternate qualifier delimiter.
+
+  3. $ tail /10 sys$Login:output.dat /f /t 3
+	
+     This example will display the last 10 lines of an output file
+     and check for new output every 3 seconds.  Note that the /f
+     qualifier is there for esoteric reasons only; the /t makes the
+     /f functionality automatic.
+
+2 DESIGN_NOTES
+
+3 GOAL
+
+Design goal:
+
+   Make a TAIL utility that can very quickly pickup the last n records 
+of a batch log file (which tend to be tens of thousands of blocks long 
+for some of our jobs).
+
+
+How it works (more or less):
+
+   For fixed length records, TAIL just seeks to the desired record and 
+dumps the file from there. For stream record formats, it reads from 
+the end of the file and counts backwards the appropriate number of 
+terminators, then seeks to that point and dumps the file from there. 
+For variable and VFC record formats, it has two modes. The default 
+mode is for it to seek to the end of the file and read backwards 
+trying to determine record boundaries based upon some reasoning.  This 
+will usually work if the records are relatively short and there are 
+few (preferrably  no) control characters in it. TAIL trys to figure 
+out if it is getting screwed up, and sometimes it may, and will fall 
+back to the "safer" mode if so. It may not notice, however, so you can 
+force it to use the "safer" mode with the /S option. 
+
+   The "safer" mode is where it reads the file from the beginning, 
+recording the record file address (rfa) of each record as it goes 
+(modulo the number of desired lines). When it reaches the end of file, 
+it backs up through the rfa table the desired number of lines, seeks 
+to that point and dumps the file from there. It always uses the 
+"safer" mode on input files less than 128 blocks in size. In the 
+"safer" mode, it doesn't use RMS $GET calls for each record. Instead 
+it reads up to 127 blocks of the file at a time then decodes the 
+record structure within that 64K of data. This results in a 
+substantially faster access to the end of the file than would 
+normally be  available with successive $GET calls. 
+
+   Monitor mode starts the same way, however, once the record 
+structure has been determined it does successive $GET calls  to obtain 
+the records added to the end of the input file. Due to a "feature" of 
+RMS, the input file has to be closed and reopened in order to gain 
+access to data added to the end of an already opened file. Although 
+this undoubtly adds overhead to the system (closing and opening the 
+file every few seconds) TAIL maintains the rfa of the last record read, 
+so it can seek to that record to get quick access to the "new" records 
+at the new end of the file.
+
+3 BUGS
+
+Known Bugs:
+
+   Nothing major has cropped up since the image was released in 4/90. 
+Since this  release has so many new features, it has at least an equal 
+number of areas of  potential bugdom. Beware. Besides these new 
+features, there remains the old tried an true (but yet to happen to 
+me) small possibility that it could seek to a point in a variable 
+length file that RMS doesn't like (only while it is NOT using the 
+"safer" mode). This doesn't seem likely because I believe that RMS 
+should like whatever record structure TAIL decodes even if it is not 
+the correct one. Should TAIL seek to a point in the file that RMS 
+doesn't like, however, one of several things might occur. Probably RMS 
+will return an "invalid record format" error. There is a slim chance 
+that RMS might bugcheck which would not be a nice thing to have happen 
+to you and if your SYSGEN option BUGCHECKFATAL=1, your system would 
+crash. If BUGCHECKFATAL=0, your process would be deleted. I suggest you 
+keep BUGCHECKFATAL=0 and use some care if TAIL'ing binary files (or 
+chicken out and always use /S on binary files).
+
+Does not treat: <dir>file, only: [dir]file.
+
+This program is getting to damn big and I can't remember how the hell it
+works.
+
+

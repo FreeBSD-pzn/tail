@@ -1,0 +1,70 @@
+It's sometimes handy to look at the tail end of a file, especially a .LOG file
+from a batch job in progress. Unix has a nifty program called TAIL which does
+just that so I wrote a version for VMS.
+
+It copies the last n RECORDS of the specified input file to the specified
+output file (defaulting to SYS$OUTPUT) making the output file attributes
+the same as those of the input. Currently it only supports standard
+sequential files, not indexed or relative (maybe later, but don't count on it).
+All the record formats are supported except UDF (undefined). The output
+file inherits the record attributes of the input file but they are otherwise
+ignored. It can read a .LOG file while it is being created during a batch
+job.
+
+To run it define a foreign command:
+
+	$ TAIL :== $dev:[dir]TAIL
+then
+	$ TAIL [/number] [/S] [/F] [/T secs] [/?]  input_file [output_file]
+
+where [] denotes optional data. The [/number] defaults to the page size of
+your terminal so you can get 1 screen's worth. The input_file is required and
+defaults are SYS$DISK:[].LOG. The output file defaults to SYS$OUTPUT. The /S
+instructs TAIL not to be tricky with variable record format files and just to
+read the file from the beginning (this tricky'ness may screw up your output
+but you'll know REAL fast if it does and if TAIL discovers that it is screwing
+up your output, it'll automatically select the /S). The /F option is a 
+monitor mode. Using /F causes TAIL to display additional records as they are 
+added to the end of the file in a sort of "monitor" mode (this is similar to 
+the behaviour of the Unix tail program). The /T option forces /F except you
+specify a display rate in seconds (the default  display rate is 5 seconds).
+The /? displays a small help message. Input files  may have wildcards. Using
+the /F mode on wildcarded input files is an easy way to do the equivalent of
+TAIL/PAGE, since the tail of each file will  be displayed and you type a
+<return> or other terminating character on the  terminal to advance to the
+next file (or quit out of TAIL).
+
+Some examples:
+
+	$ TAIL BATCH.LOG	!shows the last n lines of the .LOG file
+				!(n defaults to the pagesize of SYS$OUTPUT...
+				! ...or 23 if SYS$OUTPUT is a file)
+	$ TAIL /100 BATCH.LOG	!shows the last 100 lines
+	$ TAIL /1 FRED.EXE FOO.EXE !copies the last block of fred to foo
+	$ TAIL /10 *.TXT	!it takes wildcards too
+	$ TAIL /F BATCH		!watch BATCH.LOG grow
+	$ TAIL /T 2 FOOBAR	!watch FOOBAR.LOG grow, 2 second sample rate
+	$ TAIL -f *.COM		!'-' is an alternate to '/'
+	$ TAIL -f -10 *.COM	!effectively a TAIL/PAGE, where pagesize=10
+
+You should correlate the output rate of the generating program with the 
+sample rate of TAIL. Making TAIL look at the file every 5 seconds when the 
+file is being updated only once a minute is kind of wasteful of system 
+resources (although TAIL uses a miniscule amount of CPU to sample the file).
+You might want to add to your batch command files the DCL command SET
+OUTPUT_RATE=0:0:5 to set the batch log update rate to 5 seconds instead
+of letting it default to once a minute.
+
+Hints from those of us in the trenches:
+
+The performance of TAIL isn't affected by the size of the file you are
+TAIL'ing if it can determine the record structure at the end. If it cannot,
+it'll say so and begin reading the whole file 127 blocks at a time. This will
+certainly have an adverse effect on throughput and the file size does become
+and important issue. If you are looking at very large batch .LOG files (like
+in the thousands of blocks) and you get the message "Can't determine record
+struct, doing it the hard way" or whatever, you might consider aborting TAIL
+and waiting a few seconds for the job controller to write more data at the end
+of the log file. The new data might be enough to help TAIL determine the
+record structure and therefore causing you to avoid the lengthy delay and the
+massive consumption of system resources while it reads the whole file.
